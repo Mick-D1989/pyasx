@@ -14,9 +14,18 @@ class Ticker:
         self._url_headers = {
             'User-Agent': 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_11_5) AppleWebKit/537.36 (KHTML, like Gecko) '
                           'Chrome/50.0.2661.102 Safari/537.36'}
-        self._window_options = 'headless'  # default to suppress window from opening
+        self._window_options = ['--headless',
+                                '--window-size=1920,1480',
+                                '--no-sandbox',
+                                '--disable-dev-shm-usage',
+                                '--start-maximized']  # default to suppress window from opening
 
-    def get_history(self, period='1y', interval='1d', start=None, end=None):
+    def get_history(self, **kwargs):
+        period = kwargs['period'] if 'period' in kwargs else '1y'
+        interval = kwargs['interval'] if 'interval' in kwargs else '1d'
+        start = kwargs['start'] if 'start' in kwargs else None
+        end = kwargs['end'] if 'end' in kwargs else None
+
         base_url = 'https://query1.finance.yahoo.com/v8/finance/chart/'
         url = f'{base_url}{self.tick.upper()}'
         params = {
@@ -34,7 +43,10 @@ class Ticker:
         base_url = 'https://finance.yahoo.com/quote/'
         url = f'{base_url}{self.tick.upper()}/{fin_type}'
         options = webdriver.ChromeOptions()
-        options.add_argument(self._window_options)  # suppresses window
+        for arg in self._window_options:
+            options.add_argument(arg)
+            # TODO: need to figure out why headless mode stops click() from working
+            #  Change to options=options for headless mode
         driver = webdriver.Chrome(options=options)
         driver.get(url)
 
@@ -43,6 +55,7 @@ class Ticker:
 
         html = driver.execute_script('return document.body.innerHTML;')
         soup = BeautifulSoup(html, 'lxml')
+        driver.quit()
 
         features = soup.find_all('div', class_='D(tbr)')
         headers = []
@@ -67,13 +80,6 @@ class Ticker:
         df = pd.DataFrame(final[1:])
         df.columns = headers
         df = df_to_numeric(df)
-
-        if fin_type is not None:
-            print(f'retrieving data for: {fin_type}')
-            # TODO: I have no idea why this does not work...
-            self.income_statement = df if fin_type == 'financials' else None
-            self.balance_sheet = df if fin_type == 'balance-sheet' else None
-            self.cash_flow = df if fin_type == 'cash-flow' else None
         return df
 
     def get_statistics(self):
